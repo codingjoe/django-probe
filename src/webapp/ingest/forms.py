@@ -213,8 +213,8 @@ class AccountDeleteForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.user = user
         organizations = (
-            Organization.objects.filter(members=user)
-            .annotate(member_count=Count("memberships"))
+            Organization.objects.annotate(member_count=Count("memberships"))
+            .filter(members=user)
             .prefetch_related("projects")
         )
         self.sole_member_organizations = [
@@ -248,9 +248,8 @@ class AccountDeleteForm(forms.Form):
         with transaction.atomic():
             user = get_user_model().objects.select_for_update().get(pk=self.user.pk)
             organization_ids = list(
-                Organization.objects.filter(members=user)
-                .annotate(member_count=Count("memberships"))
-                .filter(member_count=1)
+                Organization.objects.annotate(member_count=Count("memberships"))
+                .filter(members=user, member_count=1)
                 .values_list("pk", flat=True)
             )
             organizations = list(

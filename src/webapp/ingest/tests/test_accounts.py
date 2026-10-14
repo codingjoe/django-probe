@@ -218,9 +218,22 @@ class AccountTests(TestCase):
         self.assertIsNone(submission.project_id)
 
     def test_account_delete_can_delete_sole_member_submissions(self):
+        """Only organizations the user is the sole member of are deleted, along
+        with their submissions. Shared ones and their submissions remain."""
         organization = OrganizationFactory(owner=self.user)
         project = ProjectFactory(organization=organization)
         submission = SubmissionFactory(project=project)
+        shared = OrganizationFactory(owner=self.user)
+        OrganizationMembershipFactory(organization=shared)
+        shared_submission = SubmissionFactory(
+            project=ProjectFactory(organization=shared)
+        )
+
+        response = self.client.get(reverse("account-delete"))
+
+        self.assertEqual(response.context["sole_member_organizations"], [organization])
+        self.assertEqual(response.context["shared_organizations"], [shared])
+        self.assertEqual(response.context["form"].submission_count, 1)
 
         self.client.post(
             reverse("account-delete"),
@@ -228,6 +241,8 @@ class AccountTests(TestCase):
         )
 
         self.assertFalse(Submission.objects.filter(pk=submission.pk).exists())
+        self.assertTrue(Organization.objects.filter(pk=shared.pk).exists())
+        self.assertTrue(Submission.objects.filter(pk=shared_submission.pk).exists())
 
     def test_account_delete_requires_username(self):
         organization = OrganizationFactory(owner=self.user)
